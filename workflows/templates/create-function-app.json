@@ -1,0 +1,180 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "functionAppName": {
+        "type": "string",
+        "metadata": {
+          "description": "Name of the Function App."
+        }
+      },
+      "appServicePlanName": {
+        "type": "string",
+        "defaultValue": "[concat(parameters('appServicePlanName'), '-plan')]'",
+        "metadata": {
+          "description": "Name of the App Service Plan."
+        }
+      },
+      "existingStorageAccountName": {
+        "type": "string",
+        "metadata": {
+          "description": "Name of the existing Storage Account to use."
+        }
+      },
+      "location": {
+        "type": "string",
+        "defaultValue": "[resourceGroup().location]",
+        "metadata": {
+          "description": "Location for all resources."
+        }
+      },
+      "functionWorkerRuntime": {
+        "type": "string",
+        "defaultValue": "python",
+        "allowedValues": [ "node", "dotnet", "python", "java", "powershell" ],
+        "metadata": {
+          "description": "The worker runtime for the function app."
+        }
+      },
+      "hostingPlanType": {
+        "type": "string",
+        "defaultValue": "FlexConsumption",
+        "allowedValues": [
+          "Consumption",
+          "Premium",
+          "Dedicated",
+          "FlexConsumption"
+        ],
+        "metadata": {
+          "description": "The hosting plan type for the Function App."
+        }
+      },
+      "linuxFxVersion": {
+        "type": "string",
+        "defaultValue": "Python|3.10",
+        "allowedValues": [
+          "Python|3.10",
+          "Python|3.11",
+          "Node|18",
+          "DOTNET|6.0",
+          "Java|17"
+        ],
+        "metadata": {
+          "description": "The Linux FX Version for the Function App."
+        }
+      }
+    },
+    "variables": {
+      "skuName": "[if(equals(parameters('hostingPlanType'), 'Consumption'), 'Y1', if(equals(parameters('hostingPlanType'), 'Premium'), 'EP1', if(equals(parameters('hostingPlanType'), 'Dedicated'), 'S1', 'FC1')))]",
+      "skuTier": "[if(equals(parameters('hostingPlanType'), 'Consumption'), 'Dynamic', if(equals(parameters('hostingPlanType'), 'Premium'), 'ElasticPremium', if(equals(parameters('hostingPlanType'), 'Dedicated'), 'Standard', 'FlexConsumption')))]",
+      "functionAppKind": "linux",
+      "appInsightsName": "[concat('appi-', parameters('functionAppName'))]" 
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Web/serverfarms",
+        "apiVersion": "2022-03-01",
+        "name": "[parameters('appServicePlanName')]",
+        "location": "[parameters('location')]",
+        "sku": {
+          "name": "[variables('skuName')]",
+          "tier": "[variables('skuTier')]",
+          "capacity": 0
+        },
+        "kind": "[variables('functionAppKind')]",
+        "properties": {
+          "name": "[parameters('appServicePlanName')]",
+          "perSiteScaling": false,
+          "isSpot": false,
+          "maximumElasticWorkerCount": 1,
+          "targetWorkerCount": 1,
+          "targetWorkerSizeId": 0,
+          "zoneRedundant": false,
+          "hostingEnvironmentProfile": null,
+          "hyperV": false,
+          "isXenon": false
+        }
+      },
+      {
+        "type": "Microsoft.Insights/components", 
+        "apiVersion": "2020-02-02",
+        "name": "[variables('appInsightsName')]",
+        "location": "[parameters('location')]",
+        "kind": "web",
+        "properties": {
+          "Application_Type": "web",
+          "Flow_Type": "Redfield",
+          "Request_Source": "Azure"
+        }
+      },
+      {
+        "type": "Microsoft.Web/sites",
+        "apiVersion": "2022-03-01",
+        "name": "[parameters('functionAppName')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+          "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]" 
+        ],
+        "kind": "[variables('functionAppKind')]",
+        "properties": {
+          "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+          "siteConfig": {
+            "appSettings": [
+              {
+                "name": "AzureWebJobsStorage",
+                "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('existingStorageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('existingStorageAccountName')), '2023-01-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
+              },
+              {
+                "name": "FUNCTIONS_WORKER_RUNTIME",
+                "value": "[parameters('functionWorkerRuntime')]"
+              },
+              {
+                "name": "FUNCTIONS_EXTENSION_VERSION",
+                "value": "~4"
+              },
+              {
+                "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('existingStorageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('existingStorageAccountName')), '2023-01-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
+              },
+              {
+                "name": "WEBSITE_CONTENTSHARE",
+                "value": "[toLower(parameters('functionAppName'))]"
+              },
+              {
+                "name": "APPINSIGHTS_INSTRUMENTATIONKEY", 
+                "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+              }
+            ],
+            "linuxFxVersion": "python|3.11",
+            "pythonVersion": "3.11",
+            "alwaysOn": false,
+            "cors": {
+              "allowedOrigins": ["*"],
+              "supportCredentials": false
+            },
+            "httpsOnly": true,
+            "minTlsVersion": "1.2"
+          },
+          "reserved": true,
+          "managedServiceIdentity": {
+              "type": "SystemAssigned"
+          }
+        }
+      }
+    ],
+    "outputs": {
+      "functionAppHostname": {
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName'))).defaultHostName]"
+      },
+      "appInsightsInstrumentationKey": { 
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+      },
+      "appInsightsApplicationId": { 
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').AppId]"
+      }
+    }
+}

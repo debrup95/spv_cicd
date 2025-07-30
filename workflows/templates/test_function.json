@@ -1,0 +1,122 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "functionAppName": {
+            "type": "string",
+            "defaultValue": "func-app-19",
+            "metadata": {
+                "description": "Name of the function app and hosting plan."
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "EastUS",
+            "metadata": {
+                "description": "Location for all resources."
+            }
+        },
+        "existingStorageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the existing storage account."
+            }
+        },
+        "existingStorageAccountResourceGroupName": {
+            "type": "string",
+            "metadata": {
+                "description": "Resource group name of the existing storage account."
+            }
+        }
+    },
+    "variables": {
+        "appInsightsName": "[concat(parameters('functionAppName'), 'application-insights')]",
+        "existingStorageAccountId": "[resourceId(parameters('existingStorageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts', parameters('existingStorageAccountName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Insights/components",
+            "apiVersion": "2020-02-02",
+            "name": "[variables('appInsightsName')]",
+            "location": "[parameters('location')]",
+            "kind": "web",
+            "properties": {
+                "Application_Type": "web",
+                "Request_Source": "rest"
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2021-03-01",
+            "name": "[parameters('functionAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "Linux",
+            "sku": {
+                "name": "Y1",
+                "tier": "Dynamic"
+            },
+            "properties": {
+                "reserved": true
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-03-01",
+            "name": "[parameters('functionAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "functionapp",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('functionAppName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
+                // No dependency on creating a new storage account
+            ],
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('functionAppName'))]",
+                "siteConfig": {
+                    "pythonVersion": "3.11",
+                    "linuxFxVersion": "python|3.11",
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('existingStorageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(variables('existingStorageAccountId'), '2021-09-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+                            "value": "true"
+                        },
+                        {
+                            "name": "ENABLE_ORYX_BUILD",
+                            "value": "true"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "python"
+                        }
+                    ]
+                },
+                "httpsOnly": true
+            }
+        }
+    ],
+    "outputs": {
+        "functionAppHostname": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName'))).defaultHostName]"
+        },
+        "appInsightsInstrumentationKey": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+        }
+    }
+}

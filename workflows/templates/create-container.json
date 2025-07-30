@@ -1,0 +1,29 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "storageAccountName": {
+        "type": "string",
+        "metadata": {
+          "description": "The name of the existing storage account"
+        }
+      },
+      "containerName": {
+        "type": "string",
+        "metadata": {
+          "description": "The name of the blob container to create"
+        }
+      }
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+        "apiVersion": "2025-01-01",
+        "name": "[format('{0}/default/{1}', parameters('storageAccountName'), parameters('containerName'))]",
+        "dependsOn": [],
+        "properties": {
+          "publicAccess": "None"
+        }
+      }
+    ]
+  }
