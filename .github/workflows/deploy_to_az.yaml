@@ -31,12 +31,12 @@ jobs:
           BASE_CONTAINERS=("staging" "intermediate" "failed")
           PREFIXED_CONTAINERS=()
           for c in "${BASE_CONTAINERS[@]}"; do
-            name="${{ github.event.inputs.clientName }}-${c}"   
-            name=$(echo "$name" | tr '[:upper:]' '[:lower:]')   
+            name="${{ github.event.inputs.clientName }}-${c}"
+            name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
             PREFIXED_CONTAINERS+=("$name")
           done
-          echo "containers=$(IFS=,; echo \"${PREFIXED_CONTAINERS[*]}\")" >> $GITHUB_OUTPUT
-
+          CONTAINER_LIST=$(IFS=,; echo "${PREFIXED_CONTAINERS[*]}")
+          echo "containers=$CONTAINER_LIST" >> $GITHUB_OUTPUT
 
       - name: Set up Azure CLI
         uses: azure/cli@v1
@@ -53,13 +53,16 @@ jobs:
 
       - name: Create Blob Container via ARM Template
         run: |
+          echo "Creating containers: ${{ steps.generate_names.outputs.containers }}"
           IFS=',' read -ra CONTAINERS <<< "${{ steps.generate_names.outputs.containers }}"
           for container in "${CONTAINERS[@]}"; do
+            echo "Deploying container: $container"
             az deployment group create \
-              --resource-group ${{ github.event.inputs.resourceGroupName }} \
+              --resource-group "${{ github.event.inputs.resourceGroupName }}" \
               --template-file workflows/templates/create-container.json \
-              --parameters storageAccountName=${{ github.event.inputs.storageAccountName }} containerName=$container
+              --parameters storageAccountName="${{ github.event.inputs.storageAccountName }}" containerName="$container"
           done
+
 
       # - name: Set up Python
       #   uses: actions/setup-python@v5
