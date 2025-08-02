@@ -15,6 +15,24 @@ on:
       clientName:
         description: 'Client Name'
         required: true
+      functionAppName:
+        description: 'Function App Name'
+        required: true
+      location:
+        description: 'Azure Location for Function App'
+        required: true
+      existingStorageAccountName:
+        description: 'Existing Storage Account Name'
+        required: true
+      existingStorageAccountResourceGroupName:
+        description: 'Resource Group of Existing Storage Account'
+        required: true
+      existingEventGridTopicName:
+        description: 'Existing Event Grid Topic Name'
+        required: true
+      existingEventGridTopicResourceGroupName:
+        description: 'Resource Group of Existing Event Grid Topic'
+        required: true
 
 jobs:
   deploy-and-setup:
@@ -63,22 +81,16 @@ jobs:
               --parameters storageAccountName="${{ github.event.inputs.storageAccountName }}" containerName="$container"
           done
 
-
-      # - name: Set up Python
-      #   uses: actions/setup-python@v5
-      #   with:
-      #     python-version: '3.10'
-
-      # - name: Install Python dependencies
-      #   run: |
-      #     pip install -r requirements.txt
-
-      # - name: Run Databricks Setup Script
-      #   if: ${{ success() }}
-      #   env:
-      #     STORAGE_ACCOUNT: ${{ github.event.inputs.storageAccountName }}
-      #     DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      #     CONTAINERS: ${{ steps.generate_names.outputs.containers }}
-      #   run: |
-      #     python databricks_setup.py --storage-account "$STORAGE_ACCOUNT" --container-names $(echo $CONTAINERS | tr ',' ' ')
+      - name: Create Azure Function App via ARM Template
+        run: |
+          echo "Deploying Azure Function App: ${{ github.event.inputs.functionAppName }}"
+          az deployment group create \
+            --resource-group "${{ github.event.inputs.resourceGroupName }}" \
+            --template-file workflows/templates/test_func_reh.json \
+            --parameters \
+              functionAppName="${{ github.event.inputs.functionAppName }}" \
+              location="${{ github.event.inputs.location }}" \
+              existingStorageAccountName="${{ github.event.inputs.existingStorageAccountName }}" \
+              existingStorageAccountResourceGroupName="${{ github.event.inputs.existingStorageAccountResourceGroupName }}" \
+              existingEventGridTopicName="${{ github.event.inputs.existingEventGridTopicName }}" \
+              existingEventGridTopicResourceGroupName="${{ github.event.inputs.existingEventGridTopicResourceGroupName }}"
