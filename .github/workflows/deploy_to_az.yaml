@@ -31,8 +31,8 @@ jobs:
           BASE_CONTAINERS=("staging" "intermediate" "failed")
           PREFIXED_CONTAINERS=()
           for c in "${BASE_CONTAINERS[@]}"; do
-            name="${{ github.event.inputs.clientName }}-${c}"   # use hyphen instead of underscore
-            name=$(echo "$name" | tr '[:upper:]' '[:lower:]')   # lowercase
+            name="${{ github.event.inputs.clientName }}-${c}"   
+            name=$(echo "$name" | tr '[:upper:]' '[:lower:]')   
             PREFIXED_CONTAINERS+=("$name")
           done
           echo "containers=$(IFS=,; echo \"${PREFIXED_CONTAINERS[*]}\")" >> $GITHUB_OUTPUT
