@@ -31,10 +31,12 @@ jobs:
           BASE_CONTAINERS=("staging" "intermediate" "failed")
           PREFIXED_CONTAINERS=()
           for c in "${BASE_CONTAINERS[@]}"; do
-            name="${{ github.event.inputs.clientName }}-${c}" # hyphen instead of underscore
-            PREFIXED_CONTAINERS+=("$(echo "$name" | tr '[:upper:]' '[:lower:]')")
+            name="${{ github.event.inputs.clientName }}-${c}"   # use hyphen instead of underscore
+            name=$(echo "$name" | tr '[:upper:]' '[:lower:]')   # lowercase
+            PREFIXED_CONTAINERS+=("$name")
           done
           echo "containers=$(IFS=,; echo \"${PREFIXED_CONTAINERS[*]}\")" >> $GITHUB_OUTPUT
+
 
       - name: Set up Azure CLI
         uses: azure/cli@v1
