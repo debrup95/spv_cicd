@@ -54,7 +54,7 @@ jobs:
           for container in "${CONTAINERS[@]}"; do
             az deployment group create \
               --resource-group ${{ github.event.inputs.resourceGroupName }} \
-              --template-file create-container.json \
+              --template-file workflows/templates/create-container.json \
               --parameters storageAccountName=${{ github.event.inputs.storageAccountName }} containerName=$container
           done
 
